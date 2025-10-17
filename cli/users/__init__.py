@@ -217,6 +217,23 @@ def handle_update_user(args: Namespace) -> None:
         raise
 
 
+def handle_password_reset(args: Namespace):
+    try:
+        if not args.id:
+            raise ValidationError("--id is required for password reset")
+
+        okta_client = get_okta_client()
+        users_client = okta_client.get_users_client()
+        password_reset_reponse = users_client.reset_user_password(args.id)
+        console.log(password_reset_reponse)
+        console.print(
+            f"[bold green]✓ User {args.id} password reset successfully![/bold green]"
+        )
+        _display_dict_as_table("Password reset response", password_reset_reponse)
+    except Exception:
+        pass
+
+
 def handle_delete_user(args: Namespace) -> None:
     """
     Deletes a user from both Okta and the local database.
@@ -304,5 +321,25 @@ def _display_user(user: Dict[str, Any]) -> None:
     table.add_row("Last Login", user.get("lastLogin", "N/A"))
     table.add_row("Placement Org", profile.get("placementOrg", "N/A"))
     table.add_row("Portal Access Groups", profile.get("portalAccessGroup", "N/A"))
+
+    console.print(table)
+
+
+def _display_dict_as_table(title: str, input: Dict[str, Any]) -> None:
+    """
+    Displays a given dict as a table, the dict must not have any nested dicts or lists
+
+    Args:
+        input: A dict with data
+    """
+    table = Table(title=title)
+
+    table.add_column("Field", style="cyan", width=20)
+    table.add_column("Value", style="green")
+
+    for k, v in input:
+        if isinstance(v, (dict, list, set, tuple)):
+            table.add_row(k, v.__str__)
+        table.add_row(k, v)
 
     console.print(table)

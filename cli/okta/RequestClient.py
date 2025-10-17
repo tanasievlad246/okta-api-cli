@@ -94,6 +94,7 @@ class HttpRequestClient:
         _url = f"{self.base_url}/{path.lstrip('/')}"
 
         logger.debug(f"POST {_url}")
+        logger.info(_url)
         r = post(_url, json=data, params=params, headers=_headers, timeout=self.timeout)
         r.raise_for_status()
 

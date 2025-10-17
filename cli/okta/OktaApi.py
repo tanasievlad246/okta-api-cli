@@ -120,6 +120,28 @@ class OktaUsers:
         path = f"{self.base_path}/{user_id}"
         self.request_client.delete(path)
 
+    def reset_user_password(self, user_id: str) -> dict:
+        """
+        Resets a given users password and sends an email to that user for the password reset_user_password
+
+        Args:
+            user_id: The Okta user ID
+
+        Returns:
+            dict: Password reset information with a summary and password reset url
+            {
+                "summary": "Reset password without sending email",
+                "resetPasswordUrl": "https://{yourOktaDomain}/reset_password/XE6wE17zmphl3KqAPFxO"
+            }
+        Raises:
+            requests.HTTPError: If the reset fails
+        """
+        logger.info(f"Reseting password for user with id {user_id}")
+        path = f"{self.base_path}/{user_id}/lifecycle/reset_password?sendEmail=true"
+        r = self.request_client.post(path=path)
+        logger.info(r)
+        return r.json()
+
     @staticmethod
     def validate_user_response(user_data: dict) -> OktaUserResponse:
         """

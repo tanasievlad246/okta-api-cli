@@ -13,6 +13,7 @@ from cli.users import (
     handle_get_user,
     handle_update_user,
     handle_delete_user,
+    handle_password_reset,
 )
 from cli.utils import setup_logging
 # from typer import Typer
@@ -137,6 +138,15 @@ def main():
         help="User email to delete",
     )
     delete_parser.set_defaults(func=handle_delete_user)
+
+    # USERS RESET PASSWORD SUBCOMMAND
+    reset_password_group = users_subparser.add_parser(
+        "reset-password", help="User to reset password for"
+    )
+    reset_password_group.add_argument(
+        "--id", type=str, help="The okta id for the user to reset password for"
+    )
+    reset_password_group.set_defaults(func=handle_password_reset)
 
     # Parse arguments
     args = parser.parse_args()

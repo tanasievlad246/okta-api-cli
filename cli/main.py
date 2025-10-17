@@ -18,6 +18,7 @@ from cli.users import (
     list_users,
 )
 from cli.utils import setup_logging
+from cli.updater import handle_update_command, check_for_updates_on_startup
 # from typer import Typer
 
 # app = Typer()
@@ -59,6 +60,29 @@ def main():
         help="Your Okta organization URL (e.g., https://dev-123456.okta.com)",
     )
     config_parser.set_defaults(func=config_machine)
+
+    # UPDATE COMMAND
+    cli_update_parser = subparser.add_parser(
+        "update",
+        help="Check for and install CLI updates",
+        description="Check for updates from GitHub and install the latest version",
+    )
+    cli_update_parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Only check for updates without installing",
+    )
+    cli_update_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force check even within cooldown period",
+    )
+    cli_update_parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Automatically confirm update installation without prompting",
+    )
+    cli_update_parser.set_defaults(func=handle_update_command)
 
     # USERS COMMAND
     users_parser = subparser.add_parser(
@@ -194,6 +218,10 @@ def main():
 
     # Setup logging
     setup_logging(verbose=args.verbose)
+
+    # Check for updates on startup (non-blocking, respects cooldown)
+    if args.command != "update":  # Don't check when running update command itself
+        check_for_updates_on_startup()
 
     # Execute command
     try:

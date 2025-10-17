@@ -127,19 +127,77 @@ Delete user by email:
 okta users delete --email user@example.com
 ```
 
+### List Users
+
+List users with pagination:
+```bash
+okta users list
+okta users list --page 2 --limit 50
+```
+
+Export all users to CSV:
+```bash
+okta users list --export
+```
+
+### Password Management
+
+Reset user password (sends email):
+```bash
+okta users reset-password --id USER_ID
+```
+
+Set temporary password:
+```bash
+okta users set-temp-password --id USER_ID
+```
+
+### Update CLI
+
+Check for updates:
+```bash
+okta update --check
+```
+
+Install latest version:
+```bash
+okta update
+```
+
+Force check even within cooldown period:
+```bash
+okta update --force
+```
+
 ## Command Reference
 
 | Command | Description |
 |---------|-------------|
 | `config` | Configure Okta API credentials |
+| `update` | Check for and install CLI updates |
 | `users sync` | Sync all users from Okta to local database |
+| `users list` | List users with pagination or export to CSV |
 | `users get` | Get user information by ID or email |
 | `users update` | Update user profile |
 | `users delete` | Delete user from Okta and local database |
+| `users reset-password` | Reset user password and send email |
+| `users set-temp-password` | Generate temporary password for user |
 
 ### Global Options
 
 - `-v, --verbose`: Enable verbose logging (DEBUG level)
+
+## Auto-Update
+
+The CLI automatically checks for updates once every 24 hours. When an update is available, you'll see a notification. This behavior can be configured in `~/.config/okta-cli/update_config.json`:
+
+```json
+{
+  "auto_check_updates": true,
+  "update_check_interval": 86400,
+  "last_update_check": "2025-01-01T12:00:00"
+}
+```
 
 ## Architecture
 
@@ -169,6 +227,7 @@ okta-api-cli/
        users/              # User operations
        okta/               # Okta API client
        database/           # SQLite repository
+       updater/            # Auto-update functionality
        utils/              # Logging and utilities
        exceptions.py       # Custom exceptions
        validation.py       # Pydantic models

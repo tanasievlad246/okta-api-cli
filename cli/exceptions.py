@@ -37,3 +37,15 @@ class ValidationError(OktaCliException):
     """Raised when input validation fails."""
 
     pass
+
+
+class UpdateCheckError(OktaCliException):
+    """Raised when checking for updates fails."""
+
+    pass
+
+
+class InstallationError(OktaCliException):
+    """Raised when installation or update fails."""
+
+    pass

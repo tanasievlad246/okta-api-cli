@@ -1,0 +1,15 @@
+[project]
+name = "okta-api-cli"
+version = "0.1.0"
+description = "A command-line interface for managing Okta users with local SQLite caching and multi-threaded synchronization"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+  "pydantic[email]>=2.12.2",
+  "requests>=2.32.5",
+  "rich>=14.2.0",
+  "typer>=0.19.2",
+]
+
+[project.scripts]
+okta = "cli.main:main"

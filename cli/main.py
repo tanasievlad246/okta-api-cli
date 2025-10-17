@@ -14,6 +14,8 @@ from cli.users import (
     handle_update_user,
     handle_delete_user,
     handle_password_reset,
+    handler_set_temp_password,
+    list_users,
 )
 from cli.utils import setup_logging
 # from typer import Typer
@@ -73,6 +75,31 @@ def main():
         description="Fetches all users from Okta and syncs them to the local SQLite database using multi-threading",
     )
     sync_parser.set_defaults(func=handle_sync_users)
+
+    # USERS LIST SUBCOMMAND
+    list_parser = users_subparser.add_parser(
+        "list",
+        help="List users from local database",
+        description="Display paginated list of users from local database or export all users to CSV",
+    )
+    list_parser.add_argument(
+        "--page",
+        type=int,
+        default=1,
+        help="Page number for pagination (default: 1)",
+    )
+    list_parser.add_argument(
+        "--limit",
+        type=int,
+        default=25,
+        help="Number of users per page (default: 25)",
+    )
+    list_parser.add_argument(
+        "--export",
+        action="store_true",
+        help="Export all users to a CSV file instead of displaying paginated results",
+    )
+    list_parser.set_defaults(func=list_users)
 
     # USERS GET SUBCOMMAND
     get_parser = users_subparser.add_parser(
@@ -147,6 +174,20 @@ def main():
         "--id", type=str, help="The okta id for the user to reset password for"
     )
     reset_password_group.set_defaults(func=handle_password_reset)
+
+    # USERS SET TEMP PASSWORD SUBCOMMAND
+    set_temp_password_parser = users_subparser.add_parser(
+        "set-temp-password",
+        help="Generate a temporary password for a user",
+        description="Generates a temporary password for a user that must be changed on first login",
+    )
+    set_temp_password_parser.add_argument(
+        "--id",
+        type=str,
+        required=True,
+        help="The Okta user ID to generate a temporary password for",
+    )
+    set_temp_password_parser.set_defaults(func=handler_set_temp_password)
 
     # Parse arguments
     args = parser.parse_args()

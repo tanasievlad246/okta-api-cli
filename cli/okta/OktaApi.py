@@ -1,6 +1,8 @@
+from cli.exceptions import UserNotFoundError
 from .RequestClient import HttpRequestClient
 from typing import Callable, Any
 from ..validation import OktaUserResponse
+from cli.database import UsersRepository
 import logging
 
 logger = logging.getLogger(__name__)
@@ -141,6 +143,36 @@ class OktaUsers:
         r = self.request_client.post(path=path)
         logger.info(r)
         return r.json()
+
+    def expire_user_password_with_new_password(self, user_id: str) -> str:
+        """
+        Sets a temp password for a user
+        Okta api responds with this object `{ "tempPassword": "F46gy7X4" }`
+        Args:
+            user_id: The Okta user ID
+        Returns:
+            str: The temporary password string
+        Raises:
+            requests.HTTPError: If the request fails
+
+        """
+        repository = UsersRepository()
+        user = repository.get_user_by_id(user_id)
+
+        if not user:
+            raise UserNotFoundError(
+                f"User with id {user_id} was not found in the database, please sync the database before running this command"
+            )
+        profile = user.get("profile", {})
+        logger.info(
+            f"Generating temp password for user with ID {user_id} and email {profile.get('email')}"
+        )
+        path = (
+            f"{self.base_path}/{user_id}/lifecycle/expire_password_with_temp_password"
+        )
+        response = self.request_client.post(path)
+        data = response.json()
+        return data["tempPassword"]
 
     @staticmethod
     def validate_user_response(user_data: dict) -> OktaUserResponse:

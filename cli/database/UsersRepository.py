@@ -1,6 +1,7 @@
 from cli.database import database
 import logging
 import sqlite3
+import math
 from typing import Optional, Union
 from ..validation import OktaUserResponse
 
@@ -194,6 +195,70 @@ class UsersRepository:
 
         except sqlite3.Error as e:
             logger.error(f"Error retrieving all users: {e}")
+            raise
+
+    def get_all_users_paginated(self, limit: int = 25, page: int = 1) -> dict:
+        """
+        Retrieves users from the database with pagination.
+
+        Args:
+            limit: Number of users per page (default: 25)
+            page: Page number, starting from 1 (default: 1)
+
+        Returns:
+            dict: Dictionary containing:
+                - total_users: Total number of users in database
+                - total_pages: Total number of pages
+                - current_page: Current page number
+                - users: List of user dictionaries for the current page
+        """
+        output_dict = {
+            "total_users": 0,
+            "total_pages": 0,
+            "current_page": page,
+            "users": []
+        }
+
+        try:
+            cursor = self.connection.cursor()
+
+            # Get total count
+            count_query = """
+            SELECT count(u.id) AS total_users
+            FROM users u
+            LEFT JOIN user_profiles p ON u.id = p.user_id
+            """
+            cursor.execute(count_query)
+            count_row = cursor.fetchone()
+            total = count_row[0] if count_row else 0
+
+            # Calculate pagination
+            output_dict["total_users"] = total
+            output_dict["total_pages"] = math.ceil(total / limit) if total > 0 else 0
+
+            # Get paginated users
+            offset = limit * (page - 1)
+            select_query = """
+            SELECT
+                u.id, u.status, u.created, u.activated, u.statusChanged,
+                u.lastLogin, u.lastUpdated, u.passwordChanged, u.type_id,
+                p.reportGroupList, p.firstName, p.lastName, p.mobilePhone,
+                p.portalAccessGroup, p.secondEmail, p.ackNewBusiness, p.login, p.email, p.placementOrg
+            FROM users u
+            LEFT JOIN user_profiles p ON u.id = p.user_id
+            LIMIT ? OFFSET ?
+            """
+
+            cursor.execute(select_query, (limit, offset))
+            rows = cursor.fetchall()
+
+            # Convert rows to dict format
+            output_dict["users"] = [self._row_to_dict(row) for row in rows]
+
+            return output_dict
+
+        except sqlite3.Error as e:
+            logger.error(f"Error retrieving users paginated: {e}")
             raise
 
     def update_user_profile(self, user_id: str, profile: dict) -> None:

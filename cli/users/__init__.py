@@ -6,17 +6,20 @@ Handles all user-related commands including sync, get, update, and delete.
 
 import json
 import logging
-from typing import Dict, Any
+import os
+from typing import Dict, Any, List
 from argparse import Namespace
+from datetime import date
+import csv
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 from rich.table import Table
-from rich.json import JSON
 
 from ..okta import get_okta_client
 from ..database.UsersRepository import UsersRepository
-from ..exceptions import UserNotFoundError, OktaApiError, ValidationError
+from ..exceptions import UserNotFoundError, ValidationError
+
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -330,16 +333,193 @@ def _display_dict_as_table(title: str, input: Dict[str, Any]) -> None:
     Displays a given dict as a table, the dict must not have any nested dicts or lists
 
     Args:
+        title: Title for the table
         input: A dict with data
     """
-    table = Table(title=title)
+    table = Table(title=title, show_header=True, header_style="bold magenta")
 
     table.add_column("Field", style="cyan", width=20)
     table.add_column("Value", style="green")
 
-    for k, v in input:
+    for k, v in input.items():
         if isinstance(v, (dict, list, set, tuple)):
-            table.add_row(k, v.__str__)
-        table.add_row(k, v)
+            table.add_row(k, str(v))
+        else:
+            table.add_row(k, str(v))
 
     console.print(table)
+
+
+def list_users(args: Namespace) -> None:
+    """
+    Retrieves and displays user information.
+
+    Args:
+        args: Command line arguments with page, limit, or export to export users to a csv file
+    """
+    try:
+        repository = UsersRepository()
+
+        if args.export:
+            console.print("[blue]Exporting all users to CSV...[/blue]")
+            users = repository.get_all_users()
+
+            if not users:
+                console.print("[yellow]No users found to export[/yellow]")
+                return
+
+            # Define CSV columns
+            fieldnames = [
+                "id",
+                "status",
+                "firstName",
+                "lastName",
+                "email",
+                "login",
+                "mobilePhone",
+                "created",
+                "lastUpdated",
+                "lastLogin",
+                "placementOrg",
+                "portalAccessGroup",
+            ]
+
+            filename = f"okta_users_export_{date.today()}.csv"
+            filepath = os.path.join(os.getcwd(), filename)
+
+            with open(filepath, "w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+
+                for user in users:
+                    profile = user.get("profile", {})
+                    row = {
+                        "id": user.get("id", ""),
+                        "status": user.get("status", ""),
+                        "firstName": profile.get("firstName", ""),
+                        "lastName": profile.get("lastName", ""),
+                        "email": profile.get("email", ""),
+                        "login": profile.get("login", ""),
+                        "mobilePhone": profile.get("mobilePhone", ""),
+                        "created": user.get("created", ""),
+                        "lastUpdated": user.get("lastUpdated", ""),
+                        "lastLogin": user.get("lastLogin", ""),
+                        "placementOrg": profile.get("placementOrg", ""),
+                        "portalAccessGroup": profile.get("portalAccessGroup", ""),
+                    }
+                    writer.writerow(row)
+
+            console.print(f"[bold green]✓ Exported {len(users)} users to {filename}[/bold green]")
+            return
+
+        # Paginated display
+        limit = args.limit if hasattr(args, 'limit') and args.limit is not None else 25
+        page = args.page if hasattr(args, 'page') and args.page is not None else 1
+
+        result = repository.get_all_users_paginated(limit, page)
+        _print_users_profile_table(result)
+
+    except Exception as e:
+        console.print(f"[bold red]✗ Error:[/bold red] {e}")
+        logger.error(f"Failed to list users: {e}", exc_info=True)
+        raise
+
+
+def _print_users_profile_table(result: dict) -> None:
+    """
+    Displays a paginated table of users with their profile information.
+
+    Args:
+        result: Dictionary from get_all_users_paginated containing users and pagination info
+    """
+    users = result.get("users", [])
+    total_users = result.get("total_users", 0)
+    total_pages = result.get("total_pages", 0)
+    current_page = result.get("current_page", 1)
+
+    if not users:
+        console.print("[yellow]No users found[/yellow]")
+        return
+
+    # Create table with pagination info in title
+    title = f"Users (Page {current_page} of {total_pages} | Total: {total_users})"
+    table = Table(title=title, show_header=True, header_style="bold magenta")
+
+    # Add columns
+    table.add_column("ID", style="cyan", overflow="fold", max_width=15)
+    table.add_column("Status", style="green")
+    table.add_column("First Name", style="white")
+    table.add_column("Last Name", style="white")
+    table.add_column("Email", style="blue", overflow="fold")
+    table.add_column("Mobile Phone", style="white")
+    table.add_column("Placement Org", style="yellow", overflow="fold")
+    table.add_column("Last Login", style="dim", overflow="fold", max_width=20)
+
+    # Add rows
+    for user in users:
+        profile = user.get("profile", {})
+        table.add_row(
+            user.get("id", "N/A")[:15],  # Truncate long IDs
+            user.get("status", "N/A"),
+            profile.get("firstName", "N/A"),
+            profile.get("lastName", "N/A"),
+            profile.get("email", "N/A"),
+            profile.get("mobilePhone", "N/A"),
+            profile.get("placementOrg", "N/A"),
+            user.get("lastLogin", "N/A")[:19] if user.get("lastLogin") else "N/A",  # Show date only
+        )
+
+    console.print(table)
+
+def handler_set_temp_password(args: Namespace) -> None:
+    """
+    Sets a temporary password for a user and displays it.
+
+    Args:
+        args: Command line arguments with id flag from argparse
+    """
+    try:
+        if not args.id:
+            raise ValidationError("--id is required for setting temporary password")
+
+        console.print(f"[blue]Generating temporary password for user {args.id}...[/blue]")
+
+        # Get Okta client and generate temp password
+        okta_client = get_okta_client()
+        users_client = okta_client.get_users_client()
+        temp_password = users_client.expire_user_password_with_new_password(args.id)
+
+        # Get user info to display email
+        repository = UsersRepository()
+        user = repository.get_user_by_id(args.id)
+
+        console.print(f"[bold green]✓ Temporary password generated successfully![/bold green]\n")
+
+        # Display result in a table
+        table = Table(
+            title="Temporary Password Information",
+            show_header=True,
+            header_style="bold magenta"
+        )
+        table.add_column("Field", style="cyan", width=20)
+        table.add_column("Value", style="yellow")
+
+        table.add_row("User ID", args.id)
+        if user:
+            profile = user.get("profile", {})
+            table.add_row("Email", profile.get("email", "N/A"))
+            table.add_row("Name", f"{profile.get('firstName', '')} {profile.get('lastName', '')}".strip() or "N/A")
+
+        table.add_row("Temporary Password", f"[bold]{temp_password}[/bold]")
+
+        console.print(table)
+        console.print("\n[dim]⚠ Note: This password must be changed on first login[/dim]")
+
+    except UserNotFoundError as e:
+        console.print(f"[bold red]✗ Error:[/bold red] {e}")
+        logger.error(f"User not found: {e}", exc_info=True)
+        raise
+    except Exception as e:
+        console.print(f"[bold red]✗ Failed to set temporary password:[/bold red] {e}")
+        logger.error(f"Failed to set temporary password: {e}", exc_info=True)
+        raise
